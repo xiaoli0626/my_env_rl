@@ -93,7 +93,7 @@ def main() -> None:
     # watch performance
     collector = ts.data.Collector[CollectStats](algorithm, env, exploration_noise=True)
     collector.collect(n_episode=100, render=1 / 35)
-
+    # collector.collect(n_episode=100, render=False, reset_before_collect=True)
 
 if __name__ == "__main__":
     main()

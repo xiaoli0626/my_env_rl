@@ -53,74 +53,52 @@ TSACTrainingStats = TypeVar("TSACTrainingStats", bound=SACTrainingStats)
 
 class SACPolicy(ContinuousPolicyWithExplorationNoise):
     def __init__(
-        self,
-        *,
-        actor: torch.nn.Module | ContinuousActorProbabilistic,
-        exploration_noise: BaseNoise | Literal["default"] | None = None,
-        deterministic_eval: bool = True,
-        action_scaling: bool = True,
-        action_space: gym.Space,
-        observation_space: gym.Space | None = None,
+            self,
+            *,
+            actor: torch.nn.Module | ContinuousActorProbabilistic,
+            exploration_noise: BaseNoise | Literal["default"] | None = None,
+            deterministic_eval: bool = True,
+            action_scaling: bool = True,
+            action_space: gym.Space,
+            observation_space: gym.Space | None = None,
     ):
-        """
-        :param actor: the actor network following the rules (s -> dist_input_BD)
-        :param exploration_noise: add noise to action for exploration.
-            This is useful when solving "hard exploration" problems.
-            "default" is equivalent to GaussianNoise(sigma=0.1).
-        :param deterministic_eval: flag indicating whether the policy should use deterministic
-            actions (using the mode of the action distribution) instead of stochastic ones
-            (using random sampling) during evaluation.
-            When enabled, the policy will always select the most probable action according to
-            the learned distribution during evaluation phases, while still using stochastic
-            sampling during training. This creates a clear distinction between exploration
-            (training) and exploitation (evaluation) behaviors.
-            Deterministic actions are generally preferred for final deployment and reproducible
-            evaluation as they provide consistent behavior, reduce variance in performance
-            metrics, and are more interpretable for human observers.
-            Note that this parameter only affects behavior when the policy is not within a
-            training step. When collecting rollouts for training, actions remain stochastic
-            regardless of this setting to maintain proper exploration behaviour.
-        :param action_scaling: flag indicating whether, for continuous action spaces, actions
-            should be scaled from the standard neural network output range [-1, 1] to the
-            environment's action space range [action_space.low, action_space.high].
-            This applies to continuous action spaces only (gym.spaces.Box) and has no effect
-            for discrete spaces.
-            When enabled, policy outputs are expected to be in the normalized range [-1, 1]
-            (after bounding), and are then linearly transformed to the actual required range.
-            This improves neural network training stability, allows the same algorithm to work
-            across environments with different action ranges, and standardizes exploration
-            strategies.
-            Should be disabled if the actor model already produces outputs in the correct range.
-        :param action_space: the environment's action_space.
-        :param observation_space: the environment's observation space
-        """
         super().__init__(
             exploration_noise=exploration_noise,
             action_space=action_space,
             observation_space=observation_space,
             action_scaling=action_scaling,
-            # actions already squashed by tanh
+            # actions 已经压缩到 [0, 1] 范围
             action_bound_method=None,
         )
         self.actor = actor
         self.deterministic_eval = deterministic_eval
 
     def forward(  # type: ignore
-        self,
-        batch: ObsBatchProtocol,
-        state: dict | Batch | np.ndarray | None = None,
-        **kwargs: Any,
+            self,
+            batch: ObsBatchProtocol,
+            state: dict | Batch | np.ndarray | None = None,
+            **kwargs: Any,
     ) -> DistLogProbBatchProtocol:
+        # 获取演员网络输出的动作分布参数（均值和标准差）
         (loc_B, scale_B), hidden_BH = self.actor(batch.obs, state=state, info=batch.info)
-        dist = Independent(Normal(loc=loc_B, scale=scale_B), 1)
-        if self.deterministic_eval and not self.is_within_training_step:
-            act_B = dist.mode
-        else:
-            act_B = dist.rsample()
-        log_prob = dist.log_prob(act_B).unsqueeze(-1)
 
-        squashed_action = torch.tanh(act_B)
+        # 创建一个基于均值和标准差的正态分布
+        dist = Independent(Normal(loc=loc_B, scale=scale_B), 1)
+
+        # 在评估模式下使用最可能的动作（均值），训练时进行采样
+        if self.deterministic_eval and not self.is_within_training_step:
+            act_B = dist.mode  # 使用分布的模式（均值）在评估时选择动作
+        else:
+            act_B = dist.rsample()  # 在训练时从动作分布中采样
+
+        # 将动作压缩到 [0, 1] 范围
+        squashed_action = (torch.tanh(act_B) + 1) / 2  # 将 [-1, 1] 映射到 [0, 1]
+
+        # 计算该动作的对数概率
+        log_prob = dist.log_prob(act_B).unsqueeze(-1)
         log_prob = correct_log_prob_gaussian_tanh(log_prob, squashed_action)
+
+        # 将结果存储在 Batch 对象中
         result = Batch(
             logits=(loc_B, scale_B),
             act=squashed_action,
@@ -128,7 +106,87 @@ class SACPolicy(ContinuousPolicyWithExplorationNoise):
             dist=dist,
             log_prob=log_prob,
         )
+
         return cast(DistLogProbBatchProtocol, result)
+
+# class SACPolicy(ContinuousPolicyWithExplorationNoise):
+#     def __init__(
+#         self,
+#         *,
+#         actor: torch.nn.Module | ContinuousActorProbabilistic,
+#         exploration_noise: BaseNoise | Literal["default"] | None = None,
+#         deterministic_eval: bool = True,
+#         action_scaling: bool = True,
+#         action_space: gym.Space,
+#         observation_space: gym.Space | None = None,
+#     ):
+#         """
+#         :param actor: the actor network following the rules (s -> dist_input_BD)
+#         :param exploration_noise: add noise to action for exploration.
+#             This is useful when solving "hard exploration" problems.
+#             "default" is equivalent to GaussianNoise(sigma=0.1).
+#         :param deterministic_eval: flag indicating whether the policy should use deterministic
+#             actions (using the mode of the action distribution) instead of stochastic ones
+#             (using random sampling) during evaluation.
+#             When enabled, the policy will always select the most probable action according to
+#             the learned distribution during evaluation phases, while still using stochastic
+#             sampling during training. This creates a clear distinction between exploration
+#             (training) and exploitation (evaluation) behaviors.
+#             Deterministic actions are generally preferred for final deployment and reproducible
+#             evaluation as they provide consistent behavior, reduce variance in performance
+#             metrics, and are more interpretable for human observers.
+#             Note that this parameter only affects behavior when the policy is not within a
+#             training step. When collecting rollouts for training, actions remain stochastic
+#             regardless of this setting to maintain proper exploration behaviour.
+#         :param action_scaling: flag indicating whether, for continuous action spaces, actions
+#             should be scaled from the standard neural network output range [-1, 1] to the
+#             environment's action space range [action_space.low, action_space.high].
+#             This applies to continuous action spaces only (gym.spaces.Box) and has no effect
+#             for discrete spaces.
+#             When enabled, policy outputs are expected to be in the normalized range [-1, 1]
+#             (after bounding), and are then linearly transformed to the actual required range.
+#             This improves neural network training stability, allows the same algorithm to work
+#             across environments with different action ranges, and standardizes exploration
+#             strategies.
+#             Should be disabled if the actor model already produces outputs in the correct range.
+#         :param action_space: the environment's action_space.
+#         :param observation_space: the environment's observation space
+#         """
+#         super().__init__(
+#             exploration_noise=exploration_noise,
+#             action_space=action_space,
+#             observation_space=observation_space,
+#             action_scaling=action_scaling,
+#             # actions already squashed by tanh
+#             action_bound_method=None,
+#         )
+#         self.actor = actor
+#         self.deterministic_eval = deterministic_eval
+#
+#     def forward(  # type: ignore
+#         self,
+#         batch: ObsBatchProtocol,
+#         state: dict | Batch | np.ndarray | None = None,
+#         **kwargs: Any,
+#     ) -> DistLogProbBatchProtocol:
+#         (loc_B, scale_B), hidden_BH = self.actor(batch.obs, state=state, info=batch.info)
+#         dist = Independent(Normal(loc=loc_B, scale=scale_B), 1)
+#         if self.deterministic_eval and not self.is_within_training_step:
+#             act_B = dist.mode
+#         else:
+#             act_B = dist.rsample()
+#         log_prob = dist.log_prob(act_B).unsqueeze(-1)
+#
+#         squashed_action = torch.tanh(act_B)
+#         log_prob = correct_log_prob_gaussian_tanh(log_prob, squashed_action)
+#         result = Batch(
+#             logits=(loc_B, scale_B),
+#             act=squashed_action,
+#             state=hidden_BH,
+#             dist=dist,
+#             log_prob=log_prob,
+#         )
+#         return cast(DistLogProbBatchProtocol, result)
 
 
 class Alpha(ABC):

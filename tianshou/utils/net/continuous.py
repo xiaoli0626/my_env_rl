@@ -170,35 +170,20 @@ class ContinuousCritic(AbstractContinuousCritic):
 
 
 class ContinuousActorProbabilistic(AbstractContinuousActorProbabilistic):
-    """Simple actor network that outputs `mu` and `sigma` to be used as input for a `dist_fn` (typically, a Gaussian).
-
-    Used primarily in SAC, PPO and variants thereof. For deterministic policies, see :class:`~Actor`.
-
-    :param preprocess_net: the pre-processing network, which returns a vector of a known dimension.
-    :param action_shape: a sequence of int for the shape of action.
-    :param hidden_sizes: a sequence of int for constructing the MLP after
-        preprocess_net.
-    :param max_action: the scale for the final action logits.
-    :param unbounded: whether to apply tanh activation on final logits.
-    :param conditioned_sigma: True when sigma is calculated from the
-        input, False when sigma is an independent parameter.
-    """
+    """Simple actor network that outputs `mu` and `sigma` to be used as input for a `dist_fn` (typically, a Gaussian)."""
 
     def __init__(
-        self,
-        *,
-        preprocess_net: ModuleWithVectorOutput,
-        action_shape: TActionShape,
-        hidden_sizes: Sequence[int] = (),
-        max_action: float = 1.0,
-        unbounded: bool = False,
-        conditioned_sigma: bool = False,
+            self,
+            *,
+            preprocess_net: ModuleWithVectorOutput,
+            action_shape: TActionShape,
+            hidden_sizes: Sequence[int] = (),
+            max_action: float = 1.0,
+            unbounded: bool = False,
+            conditioned_sigma: bool = False,
     ) -> None:
         output_dim = int(np.prod(action_shape))
         super().__init__(output_dim)
-        if unbounded and not np.isclose(max_action, 1.0):
-            warnings.warn("Note that max_action input will be discarded when unbounded is True.")
-            max_action = 1.0
         self.preprocess = preprocess_net
         input_dim = preprocess_net.get_output_dim()
         self.mu = MLP(input_dim=input_dim, output_dim=output_dim, hidden_sizes=hidden_sizes)
@@ -218,24 +203,100 @@ class ContinuousActorProbabilistic(AbstractContinuousActorProbabilistic):
         return self.preprocess
 
     def forward(
-        self,
-        obs: TObs,
-        state: T | None = None,
-        info: dict[str, Any] | None = None,
+            self,
+            obs: TObs,
+            state: T | None = None,
+            info: dict[str, Any] | None = None,
     ) -> tuple[tuple[torch.Tensor, torch.Tensor], T | None]:
         if info is None:
             info = {}
         logits, hidden = self.preprocess(obs, state)
         mu = self.mu(logits)
+
+        # 如果 unbounded 为 True，则直接输出不经过 tanh（并映射到 [0, 1]）
         if not self._unbounded:
+            # 通过 tanh 将 mu 映射到 [-1, 1]
             mu = self.max_action * torch.tanh(mu)
+        else:
+            # 直接将 mu 映射到 [0, 1] 范围： (mu + 1) / 2
+            mu = (mu + 1) / 2  # 将输出映射到 [0, 1] 范围
+
+        # 计算 sigma（标准差）
         if self._c_sigma:
             sigma = torch.clamp(self.sigma(logits), min=SIGMA_MIN, max=SIGMA_MAX).exp()
         else:
             shape = [1] * len(mu.shape)
             shape[1] = -1
             sigma = (self.sigma_param.view(shape) + torch.zeros_like(mu)).exp()
+
         return (mu, sigma), state
+# class ContinuousActorProbabilistic(AbstractContinuousActorProbabilistic):
+#     """Simple actor network that outputs `mu` and `sigma` to be used as input for a `dist_fn` (typically, a Gaussian).
+#
+#     Used primarily in SAC, PPO and variants thereof. For deterministic policies, see :class:`~Actor`.
+#
+#     :param preprocess_net: the pre-processing network, which returns a vector of a known dimension.
+#     :param action_shape: a sequence of int for the shape of action.
+#     :param hidden_sizes: a sequence of int for constructing the MLP after
+#         preprocess_net.
+#     :param max_action: the scale for the final action logits.
+#     :param unbounded: whether to apply tanh activation on final logits.
+#     :param conditioned_sigma: True when sigma is calculated from the
+#         input, False when sigma is an independent parameter.
+#     """
+#
+#     def __init__(
+#         self,
+#         *,
+#         preprocess_net: ModuleWithVectorOutput,
+#         action_shape: TActionShape,
+#         hidden_sizes: Sequence[int] = (),
+#         max_action: float = 1.0,
+#         unbounded: bool = False,
+#         conditioned_sigma: bool = False,
+#     ) -> None:
+#         output_dim = int(np.prod(action_shape))
+#         super().__init__(output_dim)
+#         if unbounded and not np.isclose(max_action, 1.0):
+#             warnings.warn("Note that max_action input will be discarded when unbounded is True.")
+#             max_action = 1.0
+#         self.preprocess = preprocess_net
+#         input_dim = preprocess_net.get_output_dim()
+#         self.mu = MLP(input_dim=input_dim, output_dim=output_dim, hidden_sizes=hidden_sizes)
+#         self._c_sigma = conditioned_sigma
+#         if conditioned_sigma:
+#             self.sigma = MLP(
+#                 input_dim=input_dim,
+#                 output_dim=output_dim,
+#                 hidden_sizes=hidden_sizes,
+#             )
+#         else:
+#             self.sigma_param = nn.Parameter(torch.zeros(output_dim, 1))
+#         self.max_action = max_action
+#         self._unbounded = unbounded
+#
+#     def get_preprocess_net(self) -> ModuleWithVectorOutput:
+#         return self.preprocess
+#
+#     def forward(
+#         self,
+#         obs: TObs,
+#         state: T | None = None,
+#         info: dict[str, Any] | None = None,
+#     ) -> tuple[tuple[torch.Tensor, torch.Tensor], T | None]:
+#         if info is None:
+#             info = {}
+#         logits, hidden = self.preprocess(obs, state)
+#         mu = self.mu(logits)
+#         if not self._unbounded:
+#             mu = self.max_action * torch.tanh(mu)
+#         if self._c_sigma:
+#             sigma = torch.clamp(self.sigma(logits), min=SIGMA_MIN, max=SIGMA_MAX).exp()
+#         else:
+#             shape = [1] * len(mu.shape)
+#             shape[1] = -1
+#             sigma = (self.sigma_param.view(shape) + torch.zeros_like(mu)).exp()
+#         return (mu, sigma), state
 
 
 class RecurrentActorProb(nn.Module):

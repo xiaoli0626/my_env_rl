@@ -86,7 +86,7 @@ def main(
     start_timesteps: int = 4000,
     epoch: int = 120,
     epoch_num_steps: int = 3000,
-    collection_step_num_env_steps: int = 8,
+    collection_step_num_env_steps: int = 100,
     update_per_step: float = 2.0,
     n_step: int = 1,
     batch_size: int = 256,

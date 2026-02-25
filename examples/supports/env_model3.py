@@ -76,7 +76,7 @@ class YBGCEnv(gym.Env):
         d_limit: float = 50.0,
         l_max: float = 865.0,
         max_steps_per_episode: int = 6,
-        target_r: float = 0.6*(1-100/((10 - 1) * 50 + 865))+0.4*(800/865),
+        target_r: float = 0.6*(1-100/((5 - 1) * 50 + 865))+0.4*(800/865),
         w1: float = 0.6,
         w2: float = 0.4,
         seed: Optional[int] = None,
@@ -105,6 +105,7 @@ class YBGCEnv(gym.Env):
         self.yb: List[float] = []
         self.gc: List[float] = []
         self.step_count = 0
+        self.episode_return = 0.0
         self.rng = np.random.default_rng(seed)
     def _compute_yc(self, yb: List[float], gc: List[float]) -> List[float]:
         return [yb[i] - gc[i] for i in range(self.num_agent)]
@@ -125,7 +126,7 @@ class YBGCEnv(gym.Env):
         info = {
             "r": float(r),"r1": float(r1),"r2": float(r2)
         }
-        print(f'当前奖励为{r},支架直线度的奖励为{r1},产量奖励为{r2}')
+        # print(f'当前奖励为{r},支架直线度的奖励为{r1},产量奖励为{r2}')
         return float(r), info
     def reset(
         self,
@@ -137,6 +138,7 @@ class YBGCEnv(gym.Env):
         if seed is not None:
             self.rng = np.random.default_rng(seed)
         self.step_count = 0
+        self.episode_return = 0.0
         csgb = self.rng.integers(
             low=-int(self.d_limit),
             high=int(self.d_limit) + 1,
@@ -150,11 +152,11 @@ class YBGCEnv(gym.Env):
             size=(self.num_agent,),
         ).astype(float).tolist()
         obs = self._get_obs()
-        print(f'初始刮板坐标:{self.yb}')
-        print(f'初始推移油缸:{self.gc}')
+        # print(f'初始刮板坐标:{self.yb}')
+        # print(f'初始推移油缸:{self.gc}')
         return obs, {}
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        print(f'得到的原始动作列表为{action}')
+        # print(f'得到的原始动作列表为{action}')
         self.step_count += 1
         a = np.asarray(action, dtype=np.float32).reshape(-1)
         if a.shape != (self.num_agent,):
@@ -162,46 +164,52 @@ class YBGCEnv(gym.Env):
         a = np.clip(a, 0.0, 1.0)
         gc_arr = np.asarray(self.gc, dtype=np.float32)
         action_phys = np.floor(gc_arr * a).astype(np.int32).tolist()
-        print(f'映射到物理世界的动作为{action_phys}')
+        # print(f'映射到物理世界的动作为{action_phys}')
         yc = self._compute_yc(self.yb, self.gc)
         new_yc, new_gc, new_yb = env_mode(yc, self.gc, action_phys, self.l_max, self.d_limit)
         self.yb = list(map(float, new_yb))
         self.gc = [max(0.0, float(x)) for x in new_gc]
-        print(f'环境得到的刮板坐标:{self.yb}')
-        print(f'环境得到的推移油缸:{self.gc}')
-        print(f'环境得到的支架坐标:{new_yc}')
+        # print(f'环境得到的刮板坐标:{self.yb}')
+        # print(f'环境得到的推移油缸:{self.gc}')
+        # print(f'环境得到的支架坐标:{new_yc}')
         reward, rinfo = self._reward(new_yc, action_phys)
+        self.episode_return += float(reward)
         terminated = bool(reward >= self.target_r)
         truncated = bool(self.step_count >= self.max_steps)
         obs = self._get_obs()
+        done = bool(terminated or truncated)
         info = {
             **rinfo,
             "step": self.step_count,
             "terminated_by_threshold": terminated,
+            "is_success": float(terminated),
+            "success": bool(terminated),
         }
+        if done:
+            info["episode_return"] = float(self.episode_return)
         return obs, reward, terminated, truncated, info
 
 
 
 
-
-def main() -> None:
-    # 1) 初始化环境
-    env = YBGCEnv(num_agent=10, max_steps_per_episode=6, seed=42)
-
-
-    obs, info = env.reset(seed=42)
-    print(obs)
-    print(info)
-    total_reward = 0.6*(1-100/((10 - 1) * 50 + 865))+0.4*(800/865)
-    max_iter = 20
-    for t in range(max_iter):
-        action = env.action_space.sample()  # 每维在 [0,1]
-        next_obs, reward, terminated, truncated, step_info = env.step(action)
-        total_reward += reward
-        assert env.observation_space.contains(next_obs), "obs 超出 observation_space"
-        assert np.all((action >= 0.0) & (action <= 1.0)), "随机动作不在 [0,1]"
-        if terminated or truncated:
-            break
-if __name__ == "__main__":
-    main()
+#
+# def main() -> None:
+#     # 1) 初始化环境
+#     env = YBGCEnv(num_agent=10, max_steps_per_episode=6, seed=42)
+#
+#
+#     obs, info = env.reset(seed=42)
+#     print(obs)
+#     print(info)
+#     total_reward = 0.6*(1-100/((10 - 1) * 50 + 865))+0.4*(800/865)
+#     max_iter = 20
+#     for t in range(max_iter):
+#         action = env.action_space.sample()  # 每维在 [0,1]
+#         next_obs, reward, terminated, truncated, step_info = env.step(action)
+#         total_reward += reward
+#         assert env.observation_space.contains(next_obs), "obs 超出 observation_space"
+#         assert np.all((action >= 0.0) & (action <= 1.0)), "随机动作不在 [0,1]"
+#         if terminated or truncated:
+#             break
+# if __name__ == "__main__":
+#     main()

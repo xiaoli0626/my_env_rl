@@ -66,6 +66,8 @@ def env_mode(
     return new_yc_list, zxgc_list, mqgb_list
 
 
+# print('提交这个')
+
 class YBGCEnv(gym.Env):
     metadata = {"render_modes": []}
     def __init__(

@@ -15,7 +15,15 @@ from tianshou.algorithm import SAC
 from tianshou.algorithm.algorithm_base import Algorithm
 from tianshou.algorithm.modelfree.sac import AutoAlpha, SACPolicy
 from tianshou.algorithm.optim import AdamOptimizerFactory
-from tianshou.data import Batch, Collector, CollectStats, ReplayBuffer, VectorReplayBuffer
+from tianshou.data import (
+    Batch,
+    Collector,
+    CollectStats,
+    PrioritizedReplayBuffer,
+    PrioritizedVectorReplayBuffer,
+    ReplayBuffer,
+    VectorReplayBuffer,
+)
 from tianshou.highlevel.logger import LoggerFactoryDefault
 from tianshou.trainer import OffPolicyTrainerParams
 from tianshou.utils.net.common import Net
@@ -114,27 +122,28 @@ def evaluate_success_metrics(
         "avg_success_return": avg_success_return,
     }
 
+
 def main(
     persistence_base_dir: str = "log",
     seed: int = 0,
-    buffer_size: int = 100000,
+    buffer_size: int = 500000,
     hidden_sizes: list | None = None,
-    actor_lr: float = 3e-4,
+    actor_lr: float = 1e-4,
     critic_lr: float = 3e-4,
-    gamma: float = 0.99,
-    tau: float = 0.005,
+    gamma: float = 0.995,
+    tau: float = 0.01,
     alpha: float = 0.2,
     auto_alpha: bool = True,
-    alpha_lr: float = 3e-4,
-    start_timesteps: int = 5000,
-    epoch: int = 50,
-    epoch_num_steps: int = 2000,
-    collection_step_num_env_steps: int = 100,
-    update_per_step: int = 3,
+    alpha_lr: float = 1e-4,
+    start_timesteps: int = 20000,
+    epoch: int = 200,
+    epoch_num_steps: int = 5000,
+    collection_step_num_env_steps: int = 32,
+    update_per_step: int = 2,
     n_step: int = 1,
-    batch_size: int = 256,
-    num_training_envs: int = 1,
-    num_test_envs: int = 10,
+    batch_size: int = 512,
+    num_training_envs: int = 8,
+    num_test_envs: int = 20,
     render: float = 0.0,
     device: str | None = None,
     resume_path: str | None = None,
@@ -154,6 +163,7 @@ def main(
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
 ) -> None:
+    # 默认参数偏向“稀疏成功信号”场景：更长训练、更大并行采样、更保守 actor 学习率。
     if hidden_sizes is None:
         hidden_sizes = [256, 256]
     if device is None:
@@ -242,11 +252,11 @@ def main(
     if test_only and not resume_path:
         raise ValueError("test_only=True 时必须提供 resume_path，用于加载已训练好的模型。")
 
-    buffer: VectorReplayBuffer | ReplayBuffer
+    buffer: VectorReplayBuffer | ReplayBuffer | PrioritizedVectorReplayBuffer | PrioritizedReplayBuffer
     if num_training_envs > 1:
-        buffer = VectorReplayBuffer(buffer_size, len(training_envs))
+        buffer = PrioritizedVectorReplayBuffer(buffer_size, len(training_envs), alpha=0.6, beta=0.4)
     else:
-        buffer = ReplayBuffer(buffer_size)
+        buffer = PrioritizedReplayBuffer(buffer_size, alpha=0.6, beta=0.4)
 
     training_collector = Collector[CollectStats](
         algorithm,

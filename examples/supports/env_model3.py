@@ -67,7 +67,6 @@ def env_mode(
 
 
 # print('提交这个')
-
 class YBGCEnv(gym.Env):
     metadata = {"render_modes": []}
     def __init__(
@@ -76,7 +75,8 @@ class YBGCEnv(gym.Env):
         d_limit: float = 50.0,
         l_max: float = 865.0,
         max_steps_per_episode: int = 6,
-        target_r: float = 0.6*(1-100/((5 - 1) * 50 + 865))+0.4*(800/865),
+        success_r1_threshold: Optional[float] = None,
+        success_r2_threshold: Optional[float] = None,
         w1: float = 0.6,
         w2: float = 0.4,
         seed: Optional[int] = None,
@@ -87,7 +87,12 @@ class YBGCEnv(gym.Env):
         self.d_limit = float(d_limit)
         self.l_max = float(l_max)
         self.max_steps = int(max_steps_per_episode)
-        self.target_r = float(target_r)
+        if success_r1_threshold is None:
+            success_r1_threshold = 1 - 100 / ((self.num_agent - 1) * self.d_limit + self.l_max)
+        if success_r2_threshold is None:
+            success_r2_threshold = 800 / self.l_max
+        self.success_r1_threshold = float(success_r1_threshold)
+        self.success_r2_threshold = float(success_r2_threshold)
         self.w1 = float(w1)
         self.w2 = float(w2)
         self.min_gc_init = float(min_gc_init)
@@ -174,7 +179,10 @@ class YBGCEnv(gym.Env):
         # print(f'环境得到的支架坐标:{new_yc}')
         reward, rinfo = self._reward(new_yc, action_phys)
         self.episode_return += float(reward)
-        terminated = bool(reward >= self.target_r)
+        success_by_components = bool(
+            rinfo["r1"] >= self.success_r1_threshold and rinfo["r2"] >= self.success_r2_threshold
+        )
+        terminated = success_by_components
         truncated = bool(self.step_count >= self.max_steps)
         obs = self._get_obs()
         done = bool(terminated or truncated)
@@ -182,13 +190,15 @@ class YBGCEnv(gym.Env):
             **rinfo,
             "step": self.step_count,
             "terminated_by_threshold": terminated,
+            "terminated_by_component_thresholds": terminated,
+            "success_r1_threshold": self.success_r1_threshold,
+            "success_r2_threshold": self.success_r2_threshold,
             "is_success": float(terminated),
             "success": bool(terminated),
         }
         if done:
             info["episode_return"] = float(self.episode_return)
         return obs, reward, terminated, truncated, info
-
 
 
 

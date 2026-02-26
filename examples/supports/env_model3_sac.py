@@ -21,8 +21,6 @@ from tianshou.data import (
     CollectStats,
     PrioritizedReplayBuffer,
     PrioritizedVectorReplayBuffer,
-    ReplayBuffer,
-    VectorReplayBuffer,
 )
 from tianshou.highlevel.logger import LoggerFactoryDefault
 from tianshou.trainer import OffPolicyTrainerParams
@@ -41,9 +39,10 @@ def make_env_model3_env(
     l_max: float,
     max_steps_per_episode: int,
     min_gc_init: float,
-    target_r: float,
     w1: float,
     w2: float,
+    success_r1_threshold: float | None,
+    success_r2_threshold: float | None,
 ) -> tuple[YBGCEnv, ts.env.DummyVectorEnv, ts.env.DummyVectorEnv]:
     """构建 env_model3 的单环境与向量化训练/测试环境。"""
 
@@ -56,9 +55,10 @@ def make_env_model3_env(
                 max_steps_per_episode=max_steps_per_episode,
                 seed=env_seed,
                 min_gc_init=min_gc_init,
-                target_r=target_r,
                 w1=w1,
                 w2=w2,
+                success_r1_threshold=success_r1_threshold,
+                success_r2_threshold=success_r2_threshold,
             )
 
         return _init
@@ -106,7 +106,7 @@ def evaluate_success_metrics(
             obs, rew, terminated, truncated, info = env.step(act)
             ep_return += float(rew)
             done = bool(terminated or truncated)
-            if done and bool(info.get("is_success", False)):
+            if done and bool(info.get("success", info.get("is_success", False))):
                 success_num += 1
                 success_returns.append(ep_return)
 
@@ -157,7 +157,8 @@ def main(
     num_agent: int = 10,
     d_limit: float = 50.0,
     l_max: float = 865.0,
-    target_r: float = 0.6 * (1 - 100 / ((10 - 1) * 50 + 865)) + 0.4 * (800 / 865),
+    success_r1_threshold: float | None = None,
+    success_r2_threshold: float | None = None,
     w1: float = 0.6,
     w2: float = 0.4,
     max_steps_per_episode: int = 6,
@@ -168,6 +169,11 @@ def main(
         hidden_sizes = [256, 256]
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    if success_r1_threshold is None:
+        success_r1_threshold = 1 - 100 / ((num_agent - 1) * d_limit + l_max)
+    if success_r2_threshold is None:
+        success_r2_threshold = 800 / l_max
 
     params_log_info = locals()
     log.info(f"Starting training with config:\n{params_log_info}")
@@ -181,9 +187,10 @@ def main(
         l_max=l_max,
         max_steps_per_episode=max_steps_per_episode,
         min_gc_init=min_gc_init,
-        target_r=target_r,
         w1=w1,
         w2=w2,
+        success_r1_threshold=success_r1_threshold,
+        success_r2_threshold=success_r2_threshold,
     )
 
     state_shape = env.observation_space.shape or env.observation_space.n
@@ -252,7 +259,7 @@ def main(
     if test_only and not resume_path:
         raise ValueError("test_only=True 时必须提供 resume_path，用于加载已训练好的模型。")
 
-    buffer: VectorReplayBuffer | ReplayBuffer | PrioritizedVectorReplayBuffer | PrioritizedReplayBuffer
+    buffer: PrioritizedVectorReplayBuffer | PrioritizedReplayBuffer
     if num_training_envs > 1:
         buffer = PrioritizedVectorReplayBuffer(buffer_size, len(training_envs), alpha=0.6, beta=0.4)
     else:
@@ -316,9 +323,10 @@ def main(
             l_max=l_max,
             max_steps_per_episode=max_steps_per_episode,
             min_gc_init=min_gc_init,
-            target_r=target_r,
             w1=w1,
             w2=w2,
+            success_r1_threshold=success_r1_threshold,
+            success_r2_threshold=success_r2_threshold,
             seed=eval_seed,
         )
 

@@ -76,9 +76,8 @@ class YBGCEnv(gym.Env):
         l_max: float = 865.0,
         max_steps_per_episode: int = 6,
         success_r1_threshold: Optional[float] = None,
-        success_r2_threshold: Optional[float] = None,
-        w1: float = 0.6,
-        w2: float = 0.4,
+        w1: float = 0.7,
+        w2: float = 0.3,
         seed: Optional[int] = None,
         min_gc_init: float = 500.0,
     ) -> None:
@@ -89,10 +88,7 @@ class YBGCEnv(gym.Env):
         self.max_steps = int(max_steps_per_episode)
         if success_r1_threshold is None:
             success_r1_threshold = 1 - 100 / ((self.num_agent - 1) * self.d_limit + self.l_max)
-        if success_r2_threshold is None:
-            success_r2_threshold = 800 / self.l_max
         self.success_r1_threshold = float(success_r1_threshold)
-        self.success_r2_threshold = float(success_r2_threshold)
         self.w1 = float(w1)
         self.w2 = float(w2)
         self.min_gc_init = float(min_gc_init)
@@ -121,12 +117,12 @@ class YBGCEnv(gym.Env):
         gc_norm = np.clip(gc_arr / self.l_max, 0.0, 1.0)
         obs = np.concatenate([yb_rel, gc_norm], axis=0).astype(np.float32)
         return obs
-    def _reward(self, yc: List[float], action_phys: List[float]) -> Tuple[float, Dict[str, float]]:
+    def _reward(self, yc: List[float], a: List[float]) -> Tuple[float, Dict[str, float]]:
         n = self.num_agent
         yc_diff = max(yc) - min(yc)
         r1 = 1.0 - yc_diff / ((n - 1) * self.d_limit + self.l_max)
-        sum1 = sum(action_phys)
-        r2 = sum1 / (n*self.l_max)
+        sum1 = sum(a)
+        r2 = sum1 / n
         r = np.clip(self.w1 * r1 + self.w2 * r2, 0.0, 1.0)
         info = {
             "r": float(r),"r1": float(r1),"r2": float(r2)
@@ -177,11 +173,10 @@ class YBGCEnv(gym.Env):
         # print(f'环境得到的刮板坐标:{self.yb}')
         # print(f'环境得到的推移油缸:{self.gc}')
         # print(f'环境得到的支架坐标:{new_yc}')
-        reward, rinfo = self._reward(new_yc, action_phys)
+        reward, rinfo = self._reward(new_yc, a)
         self.episode_return += float(reward)
         success_by_components = bool(
-            rinfo["r1"] >= self.success_r1_threshold and rinfo["r2"] >= self.success_r2_threshold
-        )
+            rinfo["r1"] >= self.success_r1_threshold)
         terminated = success_by_components
         truncated = bool(self.step_count >= self.max_steps)
         obs = self._get_obs()
@@ -192,7 +187,6 @@ class YBGCEnv(gym.Env):
             "terminated_by_threshold": terminated,
             "terminated_by_component_thresholds": terminated,
             "success_r1_threshold": self.success_r1_threshold,
-            "success_r2_threshold": self.success_r2_threshold,
             "is_success": float(terminated),
             "success": bool(terminated),
         }

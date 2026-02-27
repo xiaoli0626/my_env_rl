@@ -66,9 +66,9 @@ def env_mode(
     return new_yc_list, zxgc_list, mqgb_list
 
 
-# print('提交这个')
 class YBGCEnv(gym.Env):
     metadata = {"render_modes": []}
+
     def __init__(
         self,
         num_agent: int = 10,
@@ -92,6 +92,7 @@ class YBGCEnv(gym.Env):
         self.w1 = float(w1)
         self.w2 = float(w2)
         self.min_gc_init = float(min_gc_init)
+
         yb_low = np.full((self.num_agent,), -self.num_agent * self.d_limit, dtype=np.float32)
         yb_high = np.full((self.num_agent,), self.num_agent * self.d_limit, dtype=np.float32)
         gc_low = np.zeros((self.num_agent,), dtype=np.float32)
@@ -107,9 +108,12 @@ class YBGCEnv(gym.Env):
         self.gc: List[float] = []
         self.step_count = 0
         self.episode_return = 0.0
+        self.r1_reached_once = False
         self.rng = np.random.default_rng(seed)
+
     def _compute_yc(self, yb: List[float], gc: List[float]) -> List[float]:
         return [yb[i] - gc[i] for i in range(self.num_agent)]
+
     def _get_obs(self) -> np.ndarray:
         yb_arr = np.asarray(self.yb, dtype=np.float32)
         yb_rel = yb_arr - yb_arr[0]
@@ -117,6 +121,7 @@ class YBGCEnv(gym.Env):
         gc_norm = np.clip(gc_arr / self.l_max, 0.0, 1.0)
         obs = np.concatenate([yb_rel, gc_norm], axis=0).astype(np.float32)
         return obs
+
     def _reward(self, yc: List[float], a: List[float]) -> Tuple[float, Dict[str, float]]:
         n = self.num_agent
         yc_diff = max(yc) - min(yc)
@@ -124,11 +129,9 @@ class YBGCEnv(gym.Env):
         sum1 = sum(a)
         r2 = sum1 / n
         r = np.clip(self.w1 * r1 + self.w2 * r2, 0.0, 1.0)
-        info = {
-            "r": float(r),"r1": float(r1),"r2": float(r2)
-        }
-        # print(f'当前奖励为{r},支架直线度的奖励为{r1},产量奖励为{r2}')
+        info = {"r": float(r), "r1": float(r1), "r2": float(r2)}
         return float(r), info
+
     def reset(
         self,
         *,
@@ -140,6 +143,8 @@ class YBGCEnv(gym.Env):
             self.rng = np.random.default_rng(seed)
         self.step_count = 0
         self.episode_return = 0.0
+        self.r1_reached_once = False
+
         csgb = self.rng.integers(
             low=-int(self.d_limit),
             high=int(self.d_limit) + 1,
@@ -153,47 +158,50 @@ class YBGCEnv(gym.Env):
             size=(self.num_agent,),
         ).astype(float).tolist()
         obs = self._get_obs()
-        # print(f'初始刮板坐标:{self.yb}')
-        # print(f'初始推移油缸:{self.gc}')
         return obs, {}
+
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        # print(f'得到的原始动作列表为{action}')
         self.step_count += 1
         a = np.asarray(action, dtype=np.float32).reshape(-1)
         if a.shape != (self.num_agent,):
             raise ValueError(f"action shape must be ({self.num_agent},), got {a.shape}")
         a = np.clip(a, 0.0, 1.0)
+
         gc_arr = np.asarray(self.gc, dtype=np.float32)
         action_phys = np.floor(gc_arr * a).astype(np.int32).tolist()
-        # print(f'映射到物理世界的动作为{action_phys}')
         yc = self._compute_yc(self.yb, self.gc)
         new_yc, new_gc, new_yb = env_mode(yc, self.gc, action_phys, self.l_max, self.d_limit)
+
         self.yb = list(map(float, new_yb))
         self.gc = [max(0.0, float(x)) for x in new_gc]
-        # print(f'环境得到的刮板坐标:{self.yb}')
-        # print(f'环境得到的推移油缸:{self.gc}')
-        # print(f'环境得到的支架坐标:{new_yc}')
+
         reward, rinfo = self._reward(new_yc, a)
         self.episode_return += float(reward)
-        success_by_components = bool(
-            rinfo["r1"] >= self.success_r1_threshold)
-        terminated = success_by_components
+
+        success_now = bool(rinfo["r1"] >= self.success_r1_threshold)
+        if success_now:
+            self.r1_reached_once = True
+
+        terminated = False
         truncated = bool(self.step_count >= self.max_steps)
         obs = self._get_obs()
         done = bool(terminated or truncated)
+
         info = {
             **rinfo,
             "step": self.step_count,
             "terminated_by_threshold": terminated,
-            "terminated_by_component_thresholds": terminated,
+            "terminated_by_r1_threshold": False,
             "success_r1_threshold": self.success_r1_threshold,
-            "is_success": float(terminated),
-            "success": bool(terminated),
+            "success_now": success_now,
+            "is_success": float(self.r1_reached_once),
+            "success": bool(self.r1_reached_once),
+            "r1_reached_once": bool(self.r1_reached_once),
         }
         if done:
             info["episode_return"] = float(self.episode_return)
-        return obs, reward, terminated, truncated, info
 
+        return obs, reward, terminated, truncated, info
 
 
 #

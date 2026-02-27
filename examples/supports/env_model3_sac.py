@@ -42,7 +42,6 @@ def make_env_model3_env(
     w1: float,
     w2: float,
     success_r1_threshold: float | None,
-    success_r2_threshold: float | None,
 ) -> tuple[YBGCEnv, ts.env.DummyVectorEnv, ts.env.DummyVectorEnv]:
     """构建 env_model3 的单环境与向量化训练/测试环境。"""
 
@@ -58,7 +57,6 @@ def make_env_model3_env(
                 w1=w1,
                 w2=w2,
                 success_r1_threshold=success_r1_threshold,
-                success_r2_threshold=success_r2_threshold,
             )
 
         return _init
@@ -138,7 +136,7 @@ def main(
     start_timesteps: int = 20000,
     epoch: int = 200,
     epoch_num_steps: int = 5000,
-    collection_step_num_env_steps: int = 32,
+    collection_step_num_env_steps: int = 50,
     update_per_step: int = 2,
     n_step: int = 1,
     batch_size: int = 512,
@@ -158,9 +156,8 @@ def main(
     d_limit: float = 50.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
-    success_r2_threshold: float | None = None,
-    w1: float = 0.6,
-    w2: float = 0.4,
+    w1: float = 0.7,
+    w2: float = 0.3,
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
 ) -> None:
@@ -172,8 +169,7 @@ def main(
 
     if success_r1_threshold is None:
         success_r1_threshold = 1 - 100 / ((num_agent - 1) * d_limit + l_max)
-    if success_r2_threshold is None:
-        success_r2_threshold = 800 / l_max
+
 
     params_log_info = locals()
     log.info(f"Starting training with config:\n{params_log_info}")
@@ -190,7 +186,6 @@ def main(
         w1=w1,
         w2=w2,
         success_r1_threshold=success_r1_threshold,
-        success_r2_threshold=success_r2_threshold,
     )
 
     state_shape = env.observation_space.shape or env.observation_space.n
@@ -296,7 +291,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "6_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(
@@ -326,7 +321,6 @@ def main(
             w1=w1,
             w2=w2,
             success_r1_threshold=success_r1_threshold,
-            success_r2_threshold=success_r2_threshold,
             seed=eval_seed,
         )
 

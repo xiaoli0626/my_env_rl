@@ -30,6 +30,7 @@ from tianshou.utils.net.continuous import ContinuousActorProbabilistic, Continuo
 log = logging.getLogger(__name__)
 
 
+# print(111)
 def make_env_model3_env(
     seed: int,
     num_training_envs: int,

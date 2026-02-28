@@ -19,8 +19,8 @@ from tianshou.data import (
     Batch,
     Collector,
     CollectStats,
-    PrioritizedReplayBuffer,
-    PrioritizedVectorReplayBuffer,
+    ReplayBuffer,
+    VectorReplayBuffer,
 )
 from tianshou.highlevel.logger import LoggerFactoryDefault
 from tianshou.trainer import OffPolicyTrainerParams
@@ -124,24 +124,24 @@ def evaluate_success_metrics(
 def main(
     persistence_base_dir: str = "log",
     seed: int = 0,
-    buffer_size: int = 500000,
+    buffer_size: int = 150000,
     hidden_sizes: list | None = None,
-    actor_lr: float = 1e-4,
+    actor_lr: float = 2e-4,
     critic_lr: float = 3e-4,
     gamma: float = 0.995,
     tau: float = 0.01,
-    alpha: float = 0.2,
-    auto_alpha: bool = True,
+    alpha: float = 0.10,
+    auto_alpha: bool = False,
     alpha_lr: float = 1e-4,
-    start_timesteps: int = 20000,
-    epoch: int = 200,
+    start_timesteps: int = 5000,
+    epoch: int = 50,
     epoch_num_steps: int = 5000,
     collection_step_num_env_steps: int = 50,
-    update_per_step: int = 2,
+    update_per_step: int = 3,
     n_step: int = 1,
-    batch_size: int = 512,
+    batch_size: int = 256,
     num_training_envs: int = 8,
-    num_test_envs: int = 20,
+    num_test_envs: int = 4,
     render: float = 0.0,
     device: str | None = None,
     resume_path: str | None = None,
@@ -152,12 +152,12 @@ def main(
     test_only: bool = False,
     test_episode_num: int = 5,
     success_eval_episodes: int = 100,
-    num_agent: int = 10,
+    num_agent: int = 3,
     d_limit: float = 50.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
-    w1: float = 0.7,
-    w2: float = 0.3,
+    w1: float = 0.9,
+    w2: float = 0.2,
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
 ) -> None:
@@ -254,11 +254,11 @@ def main(
     if test_only and not resume_path:
         raise ValueError("test_only=True 时必须提供 resume_path，用于加载已训练好的模型。")
 
-    buffer: PrioritizedVectorReplayBuffer | PrioritizedReplayBuffer
+    buffer: VectorReplayBuffer | ReplayBuffer
     if num_training_envs > 1:
-        buffer = PrioritizedVectorReplayBuffer(buffer_size, len(training_envs), alpha=0.6, beta=0.4)
+        buffer = VectorReplayBuffer(buffer_size, len(training_envs))
     else:
-        buffer = PrioritizedReplayBuffer(buffer_size, alpha=0.6, beta=0.4)
+        buffer = ReplayBuffer(buffer_size)
 
     training_collector = Collector[CollectStats](
         algorithm,
@@ -291,7 +291,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "6_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "3buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(

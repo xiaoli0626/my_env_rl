@@ -157,7 +157,7 @@ def main(
     d_limit: float = 50.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
-    w1: float = 0.9,
+    w1: float = 0.8,
     w2: float = 0.2,
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,

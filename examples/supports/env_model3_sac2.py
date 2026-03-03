@@ -44,7 +44,7 @@ def make_env_model5_env(
     w2: float,
     success_r1_threshold: float | None,
 ) -> tuple[YBGCEnv, ts.env.DummyVectorEnv, ts.env.DummyVectorEnv]:
-    """构建 env_model3 的单环境与向量化训练/测试环境。"""
+    """构建 env_model4 的单环境与向量化训练/测试环境。"""
 
     def make_env_fn(env_seed: int) -> Callable[[], YBGCEnv]:
         def _init() -> YBGCEnv:
@@ -138,9 +138,9 @@ def main(
     epoch: int = 30,
     epoch_num_steps: int = 5000,
     collection_step_num_env_steps: int = 50,
-    update_per_step: int = 4,
+    update_per_step: int = 2,
     n_step: int = 1,
-    batch_size: int = 128,
+    batch_size: int = 256,
     num_training_envs: int = 2,
     num_test_envs: int = 2,
     render: float = 0.0,
@@ -148,7 +148,7 @@ def main(
     resume_path: str | None = None,
     resume_id: str | None = None,
     logger_type: str = "tensorboard",
-    wandb_project: str = "env_model5.sac",
+    wandb_project: str = "env_model4.sac",
     watch: bool = False,
     test_only: bool = False,
     test_episode_num: int = 5,
@@ -157,8 +157,8 @@ def main(
     d_limit: float = 5.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
-    w1: float = 0.90,
-    w2: float = 0.10,
+    w1: float = 0.70,
+    w2: float = 0.30,
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
 ) -> None:
@@ -272,7 +272,7 @@ def main(
     training_collector.collect(n_step=start_timesteps, random=True)
 
     now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
-    task = "env_model5"
+    task = "env_model4"
     algo_name = "sac"
     log_name = os.path.join(task, algo_name, str(seed), now)
     log_path = os.path.join(persistence_base_dir, log_name)

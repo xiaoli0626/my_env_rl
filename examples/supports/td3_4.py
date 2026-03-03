@@ -8,7 +8,7 @@ from collections.abc import Callable
 import numpy as np
 import torch
 import tianshou as ts
-from env_model5 import YBGCEnv
+from env_model4 import YBGCEnv
 from sensai.util import logging
 
 from tianshou.algorithm import TD3
@@ -31,7 +31,7 @@ from tianshou.utils.net.continuous import ContinuousActorDeterministic, Continuo
 log = logging.getLogger(__name__)
 
 
-def make_env_model5_env(
+def make_env_model4_env(
     seed: int,
     num_training_envs: int,
     num_test_envs: int,
@@ -137,14 +137,14 @@ def main(
     update_per_step: int = 2,
     n_step: int = 1,
     batch_size: int = 512,
-    num_training_envs: int = 8,
+    num_training_envs: int = 12,
     num_test_envs: int = 4,
     render: float = 0.0,
     device: str | None = None,
     resume_path: str | None = None,
     resume_id: str | None = None,
     logger_type: str = "tensorboard",
-    wandb_project: str = "env_model5.td3",
+    wandb_project: str = "env_model4.td3",
     watch: bool = False,
     test_only: bool = False,
     test_episode_num: int = 6,
@@ -170,7 +170,7 @@ def main(
     params_log_info = locals()
     log.info(f"Starting training with config:\n{params_log_info}")
 
-    env, training_envs, test_envs = make_env_model5_env(
+    env, training_envs, test_envs = make_env_model4_env(
         seed=seed,
         num_training_envs=num_training_envs,
         num_test_envs=num_test_envs,
@@ -265,7 +265,7 @@ def main(
     training_collector.collect(n_step=start_timesteps, random=True)
 
     now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
-    task = "env_model5"
+    task = "env_model4"
     algo_name = "td3"
     log_name = os.path.join(task, algo_name, str(seed), now)
     log_path = os.path.join(persistence_base_dir, log_name)

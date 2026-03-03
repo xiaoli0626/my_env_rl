@@ -8,7 +8,7 @@ from collections.abc import Callable
 import numpy as np
 import torch
 import tianshou as ts
-from env_model5 import YBGCEnv
+from env_model4 import YBGCEnv
 from sensai.util import logging
 
 from tianshou.algorithm import TD3
@@ -31,7 +31,7 @@ from tianshou.utils.net.continuous import ContinuousActorDeterministic, Continuo
 log = logging.getLogger(__name__)
 
 
-def make_env_model5_env(
+def make_env_model4_env(
     seed: int,
     num_training_envs: int,
     num_test_envs: int,
@@ -137,7 +137,7 @@ def main(
     update_per_step: int = 2,
     n_step: int = 1,
     batch_size: int = 512,
-    num_training_envs: int = 8,
+    num_training_envs: int = 12,
     num_test_envs: int = 4,
     render: float = 0.0,
     device: str | None = None,
@@ -149,8 +149,8 @@ def main(
     test_only: bool = False,
     test_episode_num: int = 6,
     success_eval_episodes: int = 100,
-    num_agent: int = 45,
-    d_limit: float = 5.0,
+    num_agent: int = 50,
+    d_limit: float = 10.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
     w1: float = 0.90,
@@ -170,7 +170,7 @@ def main(
     params_log_info = locals()
     log.info(f"Starting training with config:\n{params_log_info}")
 
-    env, training_envs, test_envs = make_env_model5_env(
+    env, training_envs, test_envs = make_env_model4_env(
         seed=seed,
         num_training_envs=num_training_envs,
         num_test_envs=num_test_envs,
@@ -285,7 +285,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "45buf_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "50buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(

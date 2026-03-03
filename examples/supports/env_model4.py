@@ -144,7 +144,6 @@ class YBGCEnv(gym.Env):
         self.step_count = 0
         self.episode_return = 0.0
         self.r1_reached_once = False
-
         csgb = self.rng.integers(
             low=-int(self.d_limit),
             high=int(self.d_limit) + 1,
@@ -153,7 +152,7 @@ class YBGCEnv(gym.Env):
         csgb = np.concatenate([np.array([0], dtype=np.int64), csgb], axis=0)
         self.yb = np.cumsum(csgb).astype(float).tolist()
         self.gc = self.rng.normal(800, 50, size=(self.num_agent,))
-        self.gc = [int(x) for x in np.clip(self.gc, a_min=750, a_max=865).astype(float).tolist()]
+        self.gc = [int(x) for x in np.clip(self.gc, a_min=650, a_max=865).astype(float).tolist()]
         obs = self._get_obs()
         return obs, {}
 
@@ -200,7 +199,9 @@ class YBGCEnv(gym.Env):
         return obs, reward, terminated, truncated, info
 
 
-#
+
+
+
 # def main() -> None:
 #     # 1) 初始化环境
 #     env = YBGCEnv(num_agent=10, max_steps_per_episode=6, seed=42)

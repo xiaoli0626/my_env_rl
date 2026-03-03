@@ -110,7 +110,7 @@ def test_reinforce(args: argparse.Namespace = get_args(), enable_assertions: boo
     logger = TensorboardLogger(writer)
 
     def save_best_fn(algorithm: Algorithm) -> None:
-        torch.save(algorithm.policy.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(algorithm.policy.state_dict(), os.path.join(log_path, "10pri_policy.pth"))
 
     def stop_fn(mean_rewards: float) -> bool:
         return mean_rewards >= args.reward_threshold

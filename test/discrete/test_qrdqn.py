@@ -141,7 +141,7 @@ def test_qrdqn(args: argparse.Namespace = get_args(), enable_assertions: bool = 
     logger = TensorboardLogger(writer)
 
     def save_best_fn(algo: Algorithm) -> None:
-        torch.save(algo.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(algo.state_dict(), os.path.join(log_path, "10pri_policy.pth"))
 
     def stop_fn(mean_rewards: float) -> bool:
         return mean_rewards >= args.reward_threshold

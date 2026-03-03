@@ -256,7 +256,7 @@ def test_gail(args: argparse.Namespace = get_args()) -> None:
     logger = TensorboardLogger(writer, update_interval=100, training_interval=100)
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "10pri_policy.pth"))
 
     if not args.watch:
         # train

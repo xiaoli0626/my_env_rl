@@ -141,7 +141,7 @@ def test_ppo(args: argparse.Namespace = get_args(), enable_assertions: bool = Tr
     logger = TensorboardLogger(writer, save_interval=args.save_interval)
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "10pri_policy.pth"))
 
     def stop_fn(mean_rewards: float) -> bool:
         return mean_rewards >= args.reward_threshold

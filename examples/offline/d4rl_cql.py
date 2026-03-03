@@ -337,11 +337,11 @@ def test_cql() -> None:
         logger.load(writer)
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "10pri_policy.pth"))
 
     def watch() -> None:
         if args.resume_path is None:
-            args.resume_path = os.path.join(log_path, "policy.pth")
+            args.resume_path = os.path.join(log_path, "10pri_policy.pth")
 
         algorithm.load_state_dict(torch.load(args.resume_path, map_location=torch.device("cpu")))
         collector = Collector[CollectStats](algorithm, env)

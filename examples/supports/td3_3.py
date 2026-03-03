@@ -8,7 +8,7 @@ from collections.abc import Callable
 import numpy as np
 import torch
 import tianshou as ts
-from env_model3 import YBGCEnv
+from env_model4 import YBGCEnv
 from sensai.util import logging
 
 from tianshou.algorithm import TD3
@@ -31,7 +31,7 @@ from tianshou.utils.net.continuous import ContinuousActorDeterministic, Continuo
 log = logging.getLogger(__name__)
 
 
-def make_env_model3_env(
+def make_env_model4_env(
     seed: int,
     num_training_envs: int,
     num_test_envs: int,
@@ -120,19 +120,19 @@ def evaluate_success_metrics(
 def main(
     persistence_base_dir: str = "log",
     seed: int = 0,
-    buffer_size: int = 1500000,
+    buffer_size: int = 1000000,
     hidden_sizes: list | None = None,
     actor_lr: float = 1e-4,
     critic_lr: float = 3e-4,
     gamma: float = 0.995,
     tau: float = 0.01,
-    exploration_noise: float = 0.06,
-    policy_noise: float = 0.10,
-    noise_clip: float = 0.35,
+    exploration_noise: float = 0.08,
+    policy_noise: float = 0.15,
+    noise_clip: float = 0.5,
     update_actor_freq: int = 2,
-    start_timesteps: int = 300000,
-    epoch: int = 200,
-    epoch_num_steps: int = 8000,
+    start_timesteps: int = 200000,
+    epoch: int = 100,
+    epoch_num_steps: int = 6000,
     collection_step_num_env_steps: int = 60,
     update_per_step: int = 2,
     n_step: int = 1,
@@ -144,22 +144,22 @@ def main(
     resume_path: str | None = None,
     resume_id: str | None = None,
     logger_type: str = "tensorboard",
-    wandb_project: str = "env_model3.td3",
+    wandb_project: str = "env_model4.td3",
     watch: bool = False,
     test_only: bool = False,
     test_episode_num: int = 6,
     success_eval_episodes: int = 100,
-    num_agent: int = 50,
-    d_limit: float = 50.0,
+    num_agent: int = 30,
+    d_limit: float = 5.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
-    w1: float = 0.8,
-    w2: float = 0.2,
+    w1: float = 0.90,
+    w2: float = 0.10,
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
 ) -> None:
     if hidden_sizes is None:
-        hidden_sizes = [384, 384]
+        hidden_sizes = [256, 256]
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -170,7 +170,7 @@ def main(
     params_log_info = locals()
     log.info(f"Starting training with config:\n{params_log_info}")
 
-    env, training_envs, test_envs = make_env_model3_env(
+    env, training_envs, test_envs = make_env_model4_env(
         seed=seed,
         num_training_envs=num_training_envs,
         num_test_envs=num_test_envs,
@@ -265,7 +265,7 @@ def main(
     training_collector.collect(n_step=start_timesteps, random=True)
 
     now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
-    task = "env_model3"
+    task = "env_model4"
     algo_name = "td3"
     log_name = os.path.join(task, algo_name, str(seed), now)
     log_path = os.path.join(persistence_base_dir, log_name)
@@ -285,7 +285,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "50buf_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "30buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(

@@ -144,7 +144,7 @@ def test_c51(args: argparse.Namespace = get_args(), enable_assertions: bool = Tr
     logger = TensorboardLogger(writer, save_interval=args.save_interval)
 
     def save_best_fn(algorithm: Algorithm) -> None:
-        torch.save(algorithm.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(algorithm.state_dict(), os.path.join(log_path, "10pri_policy.pth"))
 
     def stop_fn(mean_rewards: float) -> bool:
         return mean_rewards >= args.reward_threshold

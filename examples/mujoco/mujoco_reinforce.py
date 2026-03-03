@@ -172,7 +172,7 @@ def main(
 
     def save_best_fn(policy: Algorithm) -> None:
         state = {"model": policy.state_dict(), "obs_rms": training_envs.get_obs_rms()}
-        torch.save(state, os.path.join(log_path, "policy.pth"))
+        torch.save(state, os.path.join(log_path, "10pri_policy.pth"))
 
     if not watch:
         # train

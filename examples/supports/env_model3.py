@@ -152,11 +152,8 @@ class YBGCEnv(gym.Env):
         )
         csgb = np.concatenate([np.array([0], dtype=np.int64), csgb], axis=0)
         self.yb = np.cumsum(csgb).astype(float).tolist()
-        self.gc = self.rng.integers(
-            low=int(self.min_gc_init),
-            high=int(self.l_max) + 1,
-            size=(self.num_agent,),
-        ).astype(float).tolist()
+        self.gc = self.rng.normal(800,50,size=(self.num_agent,))
+        self.gc = [int(x) for x in np.clip(self.gc, a_min=750, a_max=865).astype(float).tolist()]
         obs = self._get_obs()
         return obs, {}
 
@@ -204,24 +201,24 @@ class YBGCEnv(gym.Env):
         return obs, reward, terminated, truncated, info
 
 
-#
-# def main() -> None:
-#     # 1) 初始化环境
-#     env = YBGCEnv(num_agent=10, max_steps_per_episode=6, seed=42)
-#
-#
-#     obs, info = env.reset(seed=42)
-#     print(obs)
-#     print(info)
-#     total_reward = 0.6*(1-100/((10 - 1) * 50 + 865))+0.4*(800/865)
-#     max_iter = 20
-#     for t in range(max_iter):
-#         action = env.action_space.sample()  # 每维在 [0,1]
-#         next_obs, reward, terminated, truncated, step_info = env.step(action)
-#         total_reward += reward
-#         assert env.observation_space.contains(next_obs), "obs 超出 observation_space"
-#         assert np.all((action >= 0.0) & (action <= 1.0)), "随机动作不在 [0,1]"
-#         if terminated or truncated:
-#             break
-# if __name__ == "__main__":
-#     main()
+
+def main() -> None:
+    # 1) 初始化环境
+    env = YBGCEnv(num_agent=10, max_steps_per_episode=6, seed=42)
+
+
+    obs, info = env.reset(seed=42)
+    print(obs)
+    print(info)
+    total_reward = 0.6*(1-100/((10 - 1) * 50 + 865))+0.4*(800/865)
+    max_iter = 20
+    for t in range(max_iter):
+        action = env.action_space.sample()  # 每维在 [0,1]
+        next_obs, reward, terminated, truncated, step_info = env.step(action)
+        total_reward += reward
+        assert env.observation_space.contains(next_obs), "obs 超出 observation_space"
+        assert np.all((action >= 0.0) & (action <= 1.0)), "随机动作不在 [0,1]"
+        if terminated or truncated:
+            break
+if __name__ == "__main__":
+    main()

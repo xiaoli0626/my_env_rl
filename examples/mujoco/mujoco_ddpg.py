@@ -147,7 +147,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "10pri_policy.pth"))
 
     if not watch:
         # train

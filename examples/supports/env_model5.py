@@ -72,12 +72,12 @@ class YBGCEnv(gym.Env):
     def __init__(
         self,
         num_agent: int = 10,
-        d_limit: float = 50.0,
+        d_limit: float = 5.0,
         l_max: float = 865.0,
         max_steps_per_episode: int = 6,
         success_r1_threshold: Optional[float] = None,
-        w1: float = 0.8,
-        w2: float = 0.2,
+        w1: float = 0.9,
+        w2: float = 0.1,
         seed: Optional[int] = None,
         min_gc_init: float = 500.0,
     ) -> None:
@@ -122,12 +122,13 @@ class YBGCEnv(gym.Env):
         obs = np.concatenate([yb_rel, gc_norm], axis=0).astype(np.float32)
         return obs
 
-    def _reward(self, yc: List[float], a: List[float]) -> Tuple[float, Dict[str, float]]:
+    def _reward(self, yc: List[float], a: List[float],b:List[float]) -> Tuple[float, Dict[str, float]]:
         n = self.num_agent
         yc_diff = max(yc) - min(yc)
         r1 = 1.0 - yc_diff / ((n - 1) * self.d_limit + self.l_max)
         sum1 = sum(a)
-        r2 = sum1 / n
+        sum2 = sum(b)
+        r2 = sum1 / sum2
         r = np.clip(self.w1 * r1 + self.w2 * r2, 0.0, 1.0)
         info = {"r": float(r), "r1": float(r1), "r2": float(r2)}
         return float(r), info
@@ -153,7 +154,7 @@ class YBGCEnv(gym.Env):
         csgb = np.concatenate([np.array([0], dtype=np.int64), csgb], axis=0)
         self.yb = np.cumsum(csgb).astype(float).tolist()
         self.gc = self.rng.normal(800, 50, size=(self.num_agent,))
-        self.gc = [int(x) for x in np.clip(self.gc, a_min=750, a_max=865).astype(float).tolist()]
+        self.gc = [int(x) for x in np.clip(self.gc, a_min=650, a_max=865).astype(float).tolist()]
         obs = self._get_obs()
         return obs, {}
 
@@ -165,15 +166,16 @@ class YBGCEnv(gym.Env):
         a = np.clip(a, 0.0, 1.0)
 
         gc_arr = np.asarray(self.gc, dtype=np.float32)
-        action_phys = np.floor(gc_arr * a).astype(np.int32).tolist()
+        action_phys = 500 + a * (gc_arr - 500)
+        action_phys = np.floor(action_phys).astype(np.int32).tolist()
         yc = self._compute_yc(self.yb, self.gc)
         new_yc, new_gc, new_yb = env_mode(yc, self.gc, action_phys, self.l_max, self.d_limit)
         self.yb = list(map(float, new_yb))
-        self.gc = [max(0.0, float(x)) for x in new_gc]
 
-        reward, rinfo = self._reward(new_yc, a)
+
+        reward, rinfo = self._reward(new_yc, action_phys,self.gc)
         self.episode_return += float(reward)
-
+        self.gc = [max(0.0, float(x)) for x in new_gc]
         success_now = bool(rinfo["r1"] >= self.success_r1_threshold)
         if success_now:
             self.r1_reached_once = True
@@ -200,10 +202,9 @@ class YBGCEnv(gym.Env):
         return obs, reward, terminated, truncated, info
 
 
-#
 # def main() -> None:
 #     # 1) 初始化环境
-#     env = YBGCEnv(num_agent=10, max_steps_per_episode=6, seed=42)
+#     env = YBGCEnv(num_agent=100, max_steps_per_episode=6, seed=42)
 #
 #
 #     obs, info = env.reset(seed=42)

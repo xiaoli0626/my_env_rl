@@ -8,12 +8,12 @@ from collections.abc import Callable
 import numpy as np
 import torch
 import tianshou as ts
-from env_model4 import YBGCEnv
+from env_model5 import YBGCEnv
 from sensai.util import logging
 
-from tianshou.algorithm import TD3
+from tianshou.algorithm import SAC
 from tianshou.algorithm.algorithm_base import Algorithm
-from tianshou.algorithm.modelfree.ddpg import ContinuousDeterministicPolicy
+from tianshou.algorithm.modelfree.sac import AutoAlpha, SACPolicy
 from tianshou.algorithm.optim import AdamOptimizerFactory
 from tianshou.data import (
     Batch,
@@ -22,16 +22,16 @@ from tianshou.data import (
     ReplayBuffer,
     VectorReplayBuffer,
 )
-from tianshou.exploration import GaussianNoise
 from tianshou.highlevel.logger import LoggerFactoryDefault
 from tianshou.trainer import OffPolicyTrainerParams
 from tianshou.utils.net.common import Net
-from tianshou.utils.net.continuous import ContinuousActorDeterministic, ContinuousCritic
+from tianshou.utils.net.continuous import ContinuousActorProbabilistic, ContinuousCritic
 
 log = logging.getLogger(__name__)
 
 
-def make_env_model4_env(
+# print(111)
+def make_env_model5_env(
     seed: int,
     num_training_envs: int,
     num_test_envs: int,
@@ -44,6 +44,8 @@ def make_env_model4_env(
     w2: float,
     success_r1_threshold: float | None,
 ) -> tuple[YBGCEnv, ts.env.DummyVectorEnv, ts.env.DummyVectorEnv]:
+    """构建 env_model3 的单环境与向量化训练/测试环境。"""
+
     def make_env_fn(env_seed: int) -> Callable[[], YBGCEnv]:
         def _init() -> YBGCEnv:
             return YBGCEnv(
@@ -51,19 +53,21 @@ def make_env_model4_env(
                 d_limit=d_limit,
                 l_max=l_max,
                 max_steps_per_episode=max_steps_per_episode,
+                seed=env_seed,
                 min_gc_init=min_gc_init,
                 w1=w1,
                 w2=w2,
                 success_r1_threshold=success_r1_threshold,
-                seed=env_seed,
             )
 
         return _init
 
     env = make_env_fn(seed)()
-    training_envs = ts.env.DummyVectorEnv([make_env_fn(seed + i) for i in range(num_training_envs)])
+    training_envs = ts.env.DummyVectorEnv(
+        [make_env_fn(seed + i) for i in range(num_training_envs)],
+    )
     test_envs = ts.env.DummyVectorEnv(
-        [make_env_fn(seed + num_training_envs + i) for i in range(num_test_envs)]
+        [make_env_fn(seed + num_training_envs + i) for i in range(num_test_envs)],
     )
     training_envs.seed(seed)
     test_envs.seed(seed)
@@ -71,11 +75,12 @@ def make_env_model4_env(
 
 
 def evaluate_success_metrics(
-    algorithm: TD3,
+    algorithm: SAC,
     env_factory: Callable[[int], YBGCEnv],
     episodes: int,
     seed: int,
 ) -> dict[str, float]:
+    """按 success 优先、成功回报次之评估策略。"""
     algorithm.eval()
     success_num = 0
     episode_returns: list[float] = []
@@ -120,36 +125,35 @@ def evaluate_success_metrics(
 def main(
     persistence_base_dir: str = "log",
     seed: int = 0,
-    buffer_size: int = 1000000,
+    buffer_size: int = 100000,
     hidden_sizes: list | None = None,
     actor_lr: float = 1e-4,
     critic_lr: float = 3e-4,
     gamma: float = 0.995,
     tau: float = 0.01,
-    exploration_noise: float = 0.08,
-    policy_noise: float = 0.15,
-    noise_clip: float = 0.5,
-    update_actor_freq: int = 2,
-    start_timesteps: int = 200000,
-    epoch: int = 100,
-    epoch_num_steps: int = 6000,
-    collection_step_num_env_steps: int = 60,
-    update_per_step: int = 2,
+    alpha: float = 0.05,
+    auto_alpha: bool = True,
+    alpha_lr: float = 1e-4,
+    start_timesteps: int = 5000,
+    epoch: int = 30,
+    epoch_num_steps: int = 5000,
+    collection_step_num_env_steps: int = 50,
+    update_per_step: int = 4,
     n_step: int = 1,
-    batch_size: int = 512,
-    num_training_envs: int = 8,
-    num_test_envs: int = 4,
+    batch_size: int = 128,
+    num_training_envs: int = 2,
+    num_test_envs: int = 2,
     render: float = 0.0,
     device: str | None = None,
     resume_path: str | None = None,
     resume_id: str | None = None,
     logger_type: str = "tensorboard",
-    wandb_project: str = "env_model4.td3",
+    wandb_project: str = "env_model5.sac",
     watch: bool = False,
     test_only: bool = False,
-    test_episode_num: int = 6,
+    test_episode_num: int = 5,
     success_eval_episodes: int = 100,
-    num_agent: int = 40,
+    num_agent: int = 20,
     d_limit: float = 5.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
@@ -158,6 +162,7 @@ def main(
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
 ) -> None:
+    # 默认参数偏向“稀疏成功信号”场景：更长训练、更大并行采样、更保守 actor 学习率。
     if hidden_sizes is None:
         hidden_sizes = [256, 256]
     if device is None:
@@ -170,7 +175,7 @@ def main(
     params_log_info = locals()
     log.info(f"Starting training with config:\n{params_log_info}")
 
-    env, training_envs, test_envs = make_env_model4_env(
+    env, training_envs, test_envs = make_env_model5_env(
         seed=seed,
         num_training_envs=num_training_envs,
         num_test_envs=num_test_envs,
@@ -181,12 +186,11 @@ def main(
         min_gc_init=min_gc_init,
         w1=w1,
         w2=w2,
-        success_r1_threshold=success_r1_threshold
+        success_r1_threshold=success_r1_threshold,
     )
 
     state_shape = env.observation_space.shape or env.observation_space.n
     action_shape = env.action_space.shape or env.action_space.n
-    max_action = float(np.max(env.action_space.high))
     log.info(f"Observations shape: {state_shape}")
     log.info(f"Actions shape: {action_shape}")
     log.info(f"Action range: {np.min(env.action_space.low)}, {np.max(env.action_space.high)}")
@@ -195,11 +199,13 @@ def main(
     torch.manual_seed(seed)
 
     net_a = Net(state_shape=state_shape, hidden_sizes=hidden_sizes)
-    actor = ContinuousActorDeterministic(
+    actor = ContinuousActorProbabilistic(
         preprocess_net=net_a,
         action_shape=action_shape,
-        max_action=max_action,
+        unbounded=True,
+        conditioned_sigma=True,
     ).to(device)
+
     actor_optim = AdamOptimizerFactory(lr=actor_lr)
 
     net_c1 = Net(
@@ -219,13 +225,17 @@ def main(
     critic2 = ContinuousCritic(preprocess_net=net_c2).to(device)
     critic2_optim = AdamOptimizerFactory(lr=critic_lr)
 
-    policy = ContinuousDeterministicPolicy(
+    if auto_alpha:
+        target_entropy = -np.prod(env.action_space.shape)
+        log_alpha = 0.0
+        alpha_optim = AdamOptimizerFactory(lr=alpha_lr)
+        alpha = AutoAlpha(target_entropy, log_alpha, alpha_optim).to(device)  # type: ignore[assignment]
+
+    policy = SACPolicy(
         actor=actor,
-        exploration_noise=GaussianNoise(sigma=exploration_noise * max_action),
         action_space=env.action_space,
     )
-
-    algorithm: TD3 = TD3(
+    algorithm: SAC = SAC(
         policy=policy,
         policy_optim=actor_optim,
         critic=critic1,
@@ -234,9 +244,7 @@ def main(
         critic2_optim=critic2_optim,
         tau=tau,
         gamma=gamma,
-        policy_noise=policy_noise * max_action,
-        update_actor_freq=update_actor_freq,
-        noise_clip=noise_clip * max_action,
+        alpha=alpha,
         n_step_return_horizon=n_step,
     )
 
@@ -246,7 +254,6 @@ def main(
 
     if test_only and not resume_path:
         raise ValueError("test_only=True 时必须提供 resume_path，用于加载已训练好的模型。")
-
 
     buffer: VectorReplayBuffer | ReplayBuffer
     if num_training_envs > 1:
@@ -265,8 +272,8 @@ def main(
     training_collector.collect(n_step=start_timesteps, random=True)
 
     now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
-    task = "env_model4"
-    algo_name = "td3"
+    task = "env_model5"
+    algo_name = "sac"
     log_name = os.path.join(task, algo_name, str(seed), now)
     log_path = os.path.join(persistence_base_dir, log_name)
 
@@ -285,7 +292,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "40buf_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "20buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(

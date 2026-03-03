@@ -198,7 +198,7 @@ def train_agent(
         if hasattr(args, "model_save_path"):
             model_save_path = args.model_save_path
         else:
-            model_save_path = os.path.join(args.logdir, "tic_tac_toe", "dqn", "policy.pth")
+            model_save_path = os.path.join(args.logdir, "tic_tac_toe", "dqn", "10pri_policy.pth")
         torch.save(policy.get_algorithm(player_agent_id).state_dict(), model_save_path)
 
     def stop_fn(mean_rewards: float) -> bool:

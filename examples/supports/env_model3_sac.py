@@ -125,23 +125,23 @@ def evaluate_success_metrics(
 def main(
     persistence_base_dir: str = "log",
     seed: int = 0,
-    buffer_size: int = 150000,
+    buffer_size: int = 200000,
     hidden_sizes: list | None = None,
-    actor_lr: float = 2e-4,
+    actor_lr: float = 1e-4,
     critic_lr: float = 3e-4,
     gamma: float = 0.995,
     tau: float = 0.01,
-    alpha: float = 0.10,
-    auto_alpha: bool = False,
+    alpha: float = 0.05,
+    auto_alpha: bool = True,
     alpha_lr: float = 1e-4,
     start_timesteps: int = 5000,
     epoch: int = 50,
     epoch_num_steps: int = 5000,
     collection_step_num_env_steps: int = 50,
-    update_per_step: int = 3,
+    update_per_step: int = 4,
     n_step: int = 1,
-    batch_size: int = 256,
-    num_training_envs: int = 8,
+    batch_size: int = 128,
+    num_training_envs: int = 12,
     num_test_envs: int = 4,
     render: float = 0.0,
     device: str | None = None,
@@ -153,12 +153,12 @@ def main(
     test_only: bool = False,
     test_episode_num: int = 5,
     success_eval_episodes: int = 100,
-    num_agent: int = 3,
-    d_limit: float = 50.0,
+    num_agent: int = 20,
+    d_limit: float = 5.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
-    w1: float = 0.8,
-    w2: float = 0.2,
+    w1: float = 0.9,
+    w2: float = 0.1,
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
 ) -> None:
@@ -292,7 +292,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "3buf_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "20buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(

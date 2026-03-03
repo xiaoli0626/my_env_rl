@@ -177,14 +177,14 @@ def test_bcq(args: argparse.Namespace = get_args(), enable_assertions: bool = Tr
     logger = TensorboardLogger(writer)
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "10pri_policy.pth"))
 
     def stop_fn(mean_rewards: float) -> bool:
         return mean_rewards >= args.reward_threshold
 
     def watch() -> None:
         algorithm.load_state_dict(
-            torch.load(os.path.join(log_path, "policy.pth"), map_location=torch.device("cpu")),
+            torch.load(os.path.join(log_path, "10pri_policy.pth"), map_location=torch.device("cpu")),
         )
         collector = Collector[CollectStats](algorithm, env)
         collector.collect(n_episode=1, render=1 / 35)

@@ -153,6 +153,7 @@ class YBGCEnv(gym.Env):
         self.yb = np.cumsum(csgb).astype(float).tolist()
         self.gc = self.rng.normal(800, 50, size=(self.num_agent,))
         self.gc = [int(x) for x in np.clip(self.gc, a_min=650, a_max=865).astype(float).tolist()]
+        print(f'初始杆长')
         obs = self._get_obs()
         return obs, {}
 
@@ -169,7 +170,7 @@ class YBGCEnv(gym.Env):
         new_yc, new_gc, new_yb = env_mode(yc, self.gc, action_phys, self.l_max, self.d_limit)
         self.yb = list(map(float, new_yb))
         self.gc = [max(0.0, float(x)) for x in new_gc]
-
+        print(f'新的支架坐标{new_yc}')
         reward, rinfo = self._reward(new_yc, a)
         self.episode_return += float(reward)
 

@@ -120,7 +120,7 @@ def evaluate_success_metrics(
 def main(
     persistence_base_dir: str = "log",
     seed: int = 0,
-    buffer_size: int = 1000000,
+    buffer_size: int = 1500000,
     hidden_sizes: list | None = None,
     actor_lr: float = 1e-4,
     critic_lr: float = 3e-4,
@@ -129,16 +129,16 @@ def main(
     exploration_noise: float = 0.08,
     policy_noise: float = 0.15,
     noise_clip: float = 0.5,
-    update_actor_freq: int = 2,
-    start_timesteps: int = 200000,
-    epoch: int = 100,
+    update_actor_freq: int = 3,
+    start_timesteps: int = 100000,
+    epoch: int = 300,
     epoch_num_steps: int = 6000,
-    collection_step_num_env_steps: int = 60,
+    collection_step_num_env_steps: int = 96,
     update_per_step: int = 2,
     n_step: int = 1,
     batch_size: int = 512,
-    num_training_envs: int = 12,
-    num_test_envs: int = 4,
+    num_training_envs: int = 16,
+    num_test_envs: int = 8,
     render: float = 0.0,
     device: str | None = None,
     resume_path: str | None = None,
@@ -149,8 +149,8 @@ def main(
     test_only: bool = False,
     test_episode_num: int = 6,
     success_eval_episodes: int = 100,
-    num_agent: int = 50,
-    d_limit: float = 10.0,
+    num_agent: int = 60,
+    d_limit: float = 5.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
     w1: float = 0.90,
@@ -159,7 +159,7 @@ def main(
     min_gc_init: float = 500.0,
 ) -> None:
     if hidden_sizes is None:
-        hidden_sizes = [256, 256]
+        hidden_sizes = [384, 384]
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -285,7 +285,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "50buf_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "60buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(

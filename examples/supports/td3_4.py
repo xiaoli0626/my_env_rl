@@ -130,15 +130,15 @@ def main(
     policy_noise: float = 0.15,
     noise_clip: float = 0.5,
     update_actor_freq: int = 2,
-    start_timesteps: int = 200000,
-    epoch: int = 100,
+    start_timesteps: int = 100000,
+    epoch: int = 200,
     epoch_num_steps: int = 6000,
-    collection_step_num_env_steps: int = 60,
+    collection_step_num_env_steps: int = 50,
     update_per_step: int = 2,
     n_step: int = 1,
     batch_size: int = 512,
-    num_training_envs: int = 12,
-    num_test_envs: int = 4,
+    num_training_envs: int = 16,
+    num_test_envs: int = 8,
     render: float = 0.0,
     device: str | None = None,
     resume_path: str | None = None,
@@ -159,7 +159,7 @@ def main(
     min_gc_init: float = 500.0,
 ) -> None:
     if hidden_sizes is None:
-        hidden_sizes = [256, 256]
+        hidden_sizes = [384, 384]
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 

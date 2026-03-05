@@ -131,6 +131,7 @@ def main(
     noise_clip: float = 0.5,
     update_actor_freq: int = 2,
     start_timesteps: int = 100000,
+    # start_timesteps: int = 1,
     epoch: int = 200,
     epoch_num_steps: int = 6000,
     collection_step_num_env_steps: int = 50,
@@ -141,6 +142,7 @@ def main(
     num_test_envs: int = 8,
     render: float = 0.0,
     device: str | None = None,
+    # resume_path: str | None = 'D:\代码资料\\tianshou\\tianshou\examples\supports\log\env_model4\\td3\\0\\260304-103035\\50buf_policy.pth',
     resume_path: str | None = None,
     resume_id: str | None = None,
     logger_type: str = "tensorboard",
@@ -322,8 +324,10 @@ def main(
         test_metrics = evaluate_success_metrics(
             algorithm=algorithm,
             env_factory=build_eval_env,
-            episodes=test_episode_num,
-            seed=seed,
+            episodes=success_eval_episodes,
+            seed=seed + 100000,
+            # episodes=test_episode_num,
+            # seed=seed,
         )
         log.info(f"Test-only metrics: {test_metrics}")
         return

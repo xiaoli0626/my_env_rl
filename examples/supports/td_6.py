@@ -120,7 +120,7 @@ def evaluate_success_metrics(
 def main(
     persistence_base_dir: str = "log",
     seed: int = 0,
-    buffer_size: int = 1500000,
+    buffer_size: int = 2000000,
     hidden_sizes: list | None = None,
     actor_lr: float = 1e-4,
     critic_lr: float = 3e-4,
@@ -130,16 +130,16 @@ def main(
     policy_noise: float = 0.15,
     noise_clip: float = 0.5,
     update_actor_freq: int = 3,
-    start_timesteps: int = 100000,
+    start_timesteps: int = 150000,
     # start_timesteps: int = 1,
-    epoch: int = 300,
+    epoch: int = 360,
     epoch_num_steps: int = 6000,
-    collection_step_num_env_steps: int = 96,
+    collection_step_num_env_steps: int = 120,
     update_per_step: int = 2,
     n_step: int = 1,
-    batch_size: int = 512,
-    num_training_envs: int = 16,
-    num_test_envs: int = 8,
+    batch_size: int = 768,
+    num_training_envs: int = 20,
+    num_test_envs: int = 10,
     render: float = 0.0,
     device: str | None = None,
     resume_path: str | None = None,
@@ -148,9 +148,9 @@ def main(
     wandb_project: str = "env_model4.td3",
     watch: bool = False,
     test_only: bool = False,
-    test_episode_num: int = 500,
-    success_eval_episodes: int = 1000,
-    num_agent: int = 60,
+    test_episode_num: int = 100,
+    success_eval_episodes: int = 300,
+    num_agent: int = 70,
     d_limit: float = 5.0,
     l_max: float = 865.0,
     success_r1_threshold: float | None = None,
@@ -286,7 +286,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "60buf_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "70buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(

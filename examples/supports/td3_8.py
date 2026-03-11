@@ -31,6 +31,51 @@ from tianshou.utils.net.continuous import ContinuousActorDeterministic, Continuo
 log = logging.getLogger(__name__)
 
 
+def auto_tune_td3_defaults(num_agent: int, base_num_agent: int = 70) -> dict[str, float | int | list[int]]:
+    """Auto-scale TD3 defaults according to task difficulty (agent count)."""
+    if num_agent <= base_num_agent:
+        return {}
+
+    # num_agent 越大，任务越难；difficulty 会平滑放大训练预算和稳定性参数。
+    difficulty = (num_agent - base_num_agent) / max(base_num_agent, 1)
+    scale = 1.0 + difficulty
+
+    hidden_mid = int(384 * min(scale, 1.35))
+    hidden_last = int(256 * min(scale, 1.5))
+
+    return {
+        "hidden_sizes": [hidden_mid, hidden_mid, hidden_last],
+        "actor_lr": max(6e-5, 1e-4 / (1.0 + 0.8 * difficulty)),
+        "critic_lr": max(2e-4, 3e-4 / (1.0 + 0.6 * difficulty)),
+        "tau": max(0.004, 0.01 / (1.0 + 1.1 * difficulty)),
+        "exploration_noise": min(0.14, 0.08 + 0.10 * difficulty),
+        "policy_noise": min(0.24, 0.15 + 0.14 * difficulty),
+        "noise_clip": max(0.35, 0.5 - 0.2 * difficulty),
+        "update_actor_freq": max(2, int(round(3 - 1.5 * difficulty))),
+        "start_timesteps": int(200000 * (1.0 + 1.2 * difficulty)),
+        "epoch": int(420 * (1.0 + 0.55 * difficulty)),
+        "epoch_num_steps": int(6000 * (1.0 + 0.45 * difficulty)),
+        "collection_step_num_env_steps": int(144 * (1.0 + 0.3 * difficulty)),
+        "update_per_step": min(4, max(2, int(round(2 + 2.0 * difficulty)))),
+        "batch_size": int(min(1280, 768 * (1.0 + 0.55 * difficulty))),
+    }
+
+
+def align_step_count(step_count: int, env_num: int, mode: str = "up") -> int:
+    """Align collected step count to be a multiple of env_num to avoid collector warnings."""
+    if env_num <= 1:
+        return int(step_count)
+
+    step_count = int(step_count)
+    remainder = step_count % env_num
+    if remainder == 0:
+        return step_count
+
+    if mode == "down":
+        return max(env_num, step_count - remainder)
+    return step_count + (env_num - remainder)
+
+
 def make_env_model4_env(
     seed: int,
     num_training_envs: int,
@@ -122,21 +167,21 @@ def main(
     seed: int = 0,
     buffer_size: int = 3000000,
     hidden_sizes: list | None = None,
-    actor_lr: float = 8e-5,
-    critic_lr: float = 2.5e-4,
+    actor_lr: float = 1e-4,
+    critic_lr: float = 3e-4,
     gamma: float = 0.995,
-    tau: float = 0.007,
-    exploration_noise: float = 0.10,
-    policy_noise: float = 0.18,
-    noise_clip: float = 0.45,
+    tau: float = 0.01,
+    exploration_noise: float = 0.08,
+    policy_noise: float = 0.15,
+    noise_clip: float = 0.5,
     update_actor_freq: int = 3,
-    start_timesteps: int = 250000,
-    epoch: int = 400,
-    epoch_num_steps: int = 8000,
+    start_timesteps: int = 200000,
+    epoch: int = 420,
+    epoch_num_steps: int = 6000,
     collection_step_num_env_steps: int = 144,
-    update_per_step: int = 3,
+    update_per_step: int = 2,
     n_step: int = 1,
-    batch_size: int = 896,
+    batch_size: int = 768,
     num_training_envs: int = 24,
     num_test_envs: int = 10,
     render: float = 0.0,
@@ -157,15 +202,75 @@ def main(
     w2: float = 0.10,
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
+    enable_auto_tuning: bool = True,
+    auto_tune_base_num_agent: int = 70,
 ) -> None:
+    tuned_params: dict[str, float | int | list[int]] = {}
+    if enable_auto_tuning:
+        tuned_params = auto_tune_td3_defaults(
+            num_agent=num_agent,
+            base_num_agent=auto_tune_base_num_agent,
+        )
+
+    if hidden_sizes is None and "hidden_sizes" in tuned_params:
+        hidden_sizes = tuned_params["hidden_sizes"]
     if hidden_sizes is None:
-        hidden_sizes = [512, 512]
+        hidden_sizes = [384, 384]
+
+    actor_lr = float(tuned_params.get("actor_lr", actor_lr))
+    critic_lr = float(tuned_params.get("critic_lr", critic_lr))
+    tau = float(tuned_params.get("tau", tau))
+    exploration_noise = float(tuned_params.get("exploration_noise", exploration_noise))
+    policy_noise = float(tuned_params.get("policy_noise", policy_noise))
+    noise_clip = float(tuned_params.get("noise_clip", noise_clip))
+    update_actor_freq = int(tuned_params.get("update_actor_freq", update_actor_freq))
+    start_timesteps = int(tuned_params.get("start_timesteps", start_timesteps))
+    epoch = int(tuned_params.get("epoch", epoch))
+    epoch_num_steps = int(tuned_params.get("epoch_num_steps", epoch_num_steps))
+    collection_step_num_env_steps = int(
+        tuned_params.get("collection_step_num_env_steps", collection_step_num_env_steps)
+    )
+    update_per_step = int(tuned_params.get("update_per_step", update_per_step))
+    batch_size = int(tuned_params.get("batch_size", batch_size))
+
+    aligned_start_timesteps = align_step_count(start_timesteps, num_training_envs, mode="up")
+    if aligned_start_timesteps != start_timesteps:
+        log.info(
+            "Auto-aligned start_timesteps from %s to %s to match num_training_envs=%s",
+            start_timesteps,
+            aligned_start_timesteps,
+            num_training_envs,
+        )
+        start_timesteps = aligned_start_timesteps
+
+    aligned_collection_steps = align_step_count(
+        collection_step_num_env_steps,
+        num_training_envs,
+        mode="up",
+    )
+    if aligned_collection_steps != collection_step_num_env_steps:
+        log.info(
+            "Auto-aligned collection_step_num_env_steps from %s to %s to match num_training_envs=%s",
+            collection_step_num_env_steps,
+            aligned_collection_steps,
+            num_training_envs,
+        )
+        collection_step_num_env_steps = aligned_collection_steps
+
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     if success_r1_threshold is None:
         success_r1_threshold = 1 - 100 / ((num_agent - 1) * d_limit + l_max)
 
+
+    if tuned_params:
+        log.info(
+            "Auto tuning enabled for num_agent=%s, base=%s, applied params=%s",
+            num_agent,
+            auto_tune_base_num_agent,
+            tuned_params,
+        )
 
     params_log_info = locals()
     log.info(f"Starting training with config:\n{params_log_info}")
@@ -285,7 +390,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "80buf_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "0308_80buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(

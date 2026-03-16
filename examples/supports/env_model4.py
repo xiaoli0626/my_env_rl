@@ -154,6 +154,9 @@ class YBGCEnv(gym.Env):
         self.gc = self.rng.normal(800, 50, size=(self.num_agent,))
         self.gc = [int(x) for x in np.clip(self.gc, a_min=650, a_max=865).astype(float).tolist()]
 
+        # print(f'初始刮板坐标：{self.yb}')
+        # print(f'初始杆长{self.gc}')
+        # print(f'初始支架{self.yb-self.gc}')
         obs = self._get_obs()
         return obs, {}
 
@@ -173,7 +176,7 @@ class YBGCEnv(gym.Env):
         # print(f'新的支架坐标{new_yc}')
         reward, rinfo = self._reward(new_yc, a)
         self.episode_return += float(reward)
-
+        # print(f'新的支架坐标{new_yc}')
         success_now = bool(rinfo["r1"] >= self.success_r1_threshold)
         if success_now:
             self.r1_reached_once = True

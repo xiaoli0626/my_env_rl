@@ -149,7 +149,7 @@ def main(
     watch: bool = False,
     test_only: bool = True,
     test_episode_num: int = 100,
-    success_eval_episodes: int = 300,
+    success_eval_episodes: int = 1,
     num_agent: int = 80,
     d_limit: float = 5.0,
     l_max: float = 865.0,

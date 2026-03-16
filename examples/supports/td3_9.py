@@ -30,7 +30,6 @@ from tianshou.utils.net.continuous import ContinuousActorDeterministic, Continuo
 
 log = logging.getLogger(__name__)
 
-
 def make_env_model4_env(
     seed: int,
     num_training_envs: int,
@@ -43,6 +42,7 @@ def make_env_model4_env(
     w1: float,
     w2: float,
     success_r1_threshold: float | None,
+    extreme_init_prob: float,
 ) -> tuple[YBGCEnv, ts.env.DummyVectorEnv, ts.env.DummyVectorEnv]:
     def make_env_fn(env_seed: int) -> Callable[[], YBGCEnv]:
         def _init() -> YBGCEnv:
@@ -55,6 +55,7 @@ def make_env_model4_env(
                 w1=w1,
                 w2=w2,
                 success_r1_threshold=success_r1_threshold,
+                extreme_init_prob=extreme_init_prob,
                 seed=env_seed,
             )
 
@@ -157,6 +158,7 @@ def main(
     w2: float = 0.10,
     max_steps_per_episode: int = 6,
     min_gc_init: float = 500.0,
+    extreme_init_prob: float = 0.3,
 ) -> None:
     if hidden_sizes is None:
         hidden_sizes = [512, 512]
@@ -181,7 +183,8 @@ def main(
         min_gc_init=min_gc_init,
         w1=w1,
         w2=w2,
-        success_r1_threshold=success_r1_threshold
+        success_r1_threshold=success_r1_threshold,
+        extreme_init_prob=extreme_init_prob
     )
 
     state_shape = env.observation_space.shape or env.observation_space.n
@@ -315,6 +318,7 @@ def main(
             w1=w1,
             w2=w2,
             success_r1_threshold=success_r1_threshold,
+            extreme_init_prob=extreme_init_prob,
             seed=eval_seed,
         )
 

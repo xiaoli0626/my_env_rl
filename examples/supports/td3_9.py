@@ -120,23 +120,23 @@ def evaluate_success_metrics(
 def main(
     persistence_base_dir: str = "log",
     seed: int = 0,
-    buffer_size: int = 4000000,
+    buffer_size: int = 3000000,
     hidden_sizes: list | None = None,
-    actor_lr: float = 1e-6,
-    critic_lr: float = 2e-4,
+    actor_lr: float = 8e-5,
+    critic_lr: float = 2.5e-4,
     gamma: float = 0.995,
-    tau: float = 0.005,
-    exploration_noise: float = 0.12,
-    policy_noise: float = 0.20,
-    noise_clip: float = 0.40,
+    tau: float = 0.007,
+    exploration_noise: float = 0.10,
+    policy_noise: float = 0.18,
+    noise_clip: float = 0.45,
     update_actor_freq: int = 3,
-    start_timesteps: int = 400000,
+    start_timesteps: int = 250000,
     epoch: int = 400,
     epoch_num_steps: int = 8000,
     collection_step_num_env_steps: int = 144,
     update_per_step: int = 3,
     n_step: int = 1,
-    batch_size: int = 1024,
+    batch_size: int = 896,
     num_training_envs: int = 24,
     num_test_envs: int = 10,
     render: float = 0.0,
@@ -159,7 +159,7 @@ def main(
     min_gc_init: float = 500.0,
 ) -> None:
     if hidden_sizes is None:
-        hidden_sizes = [640, 640]
+        hidden_sizes = [512, 512]
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 

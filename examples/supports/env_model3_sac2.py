@@ -130,19 +130,19 @@ def main(
     actor_lr: float = 1e-4,
     critic_lr: float = 3e-4,
     gamma: float = 0.995,
-    tau: float = 0.008,
+    tau: float = 0.01,
     alpha: float = 0.05,
     auto_alpha: bool = True,
     alpha_lr: float = 1e-4,
-    start_timesteps: int = 5000,
-    epoch: int = 30,
-    epoch_num_steps: int = 5000,
-    collection_step_num_env_steps: int = 50,
+    start_timesteps: int = 150000,
+    epoch: int = 360,
+    epoch_num_steps: int = 6000,
+    collection_step_num_env_steps: int = 120,
     update_per_step: int = 2,
     n_step: int = 1,
-    batch_size: int = 256,
-    num_training_envs: int = 4,
-    num_test_envs: int = 2,
+    batch_size: int = 768,
+    num_training_envs: int = 20,
+    num_test_envs: int = 10,
     render: float = 0.0,
     device: str | None = None,
     resume_path: str | None = None,
@@ -151,8 +151,8 @@ def main(
     wandb_project: str = "env_model4.sac",
     watch: bool = False,
     test_only: bool = False,
-    test_episode_num: int = 6,
-    success_eval_episodes: int = 100,
+    test_episode_num: int = 100,
+    success_eval_episodes: int = 300,
     num_agent: int = 70,
     d_limit: float = 5.0,
     l_max: float = 865.0,
@@ -164,7 +164,7 @@ def main(
 ) -> None:
     # 默认参数偏向“稀疏成功信号”场景：更长训练、更大并行采样、更保守 actor 学习率。
     if hidden_sizes is None:
-        hidden_sizes = [256, 256]
+        hidden_sizes = [384, 384]
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -292,7 +292,7 @@ def main(
     )
 
     def save_best_fn(policy: Algorithm) -> None:
-        torch.save(policy.state_dict(), os.path.join(log_path, "20buf_policy.pth"))
+        torch.save(policy.state_dict(), os.path.join(log_path, "70buf_policy.pth"))
 
     if not watch and not test_only:
         result = algorithm.run_training(
@@ -329,8 +329,10 @@ def main(
         test_metrics = evaluate_success_metrics(
             algorithm=algorithm,
             env_factory=build_eval_env,
-            episodes=test_episode_num,
-            seed=seed,
+            episodes=success_eval_episodes,
+            seed=seed + 100000,
+            # episodes=test_episode_num,
+            # seed=seed,
         )
         log.info(f"Test-only metrics: {test_metrics}")
         return

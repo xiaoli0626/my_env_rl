@@ -80,6 +80,7 @@ class YBGCEnv(gym.Env):
         w2: float = 0.2,
         seed: Optional[int] = None,
         min_gc_init: float = 500.0,
+        extreme_init_prob: float = 0.3,
     ) -> None:
         super().__init__()
         self.num_agent = int(num_agent)
@@ -92,7 +93,7 @@ class YBGCEnv(gym.Env):
         self.w1 = float(w1)
         self.w2 = float(w2)
         self.min_gc_init = float(min_gc_init)
-
+        self.extreme_init_prob = float(np.clip(extreme_init_prob, 0.0, 1.0))
         yb_low = np.full((self.num_agent,), -self.num_agent * self.d_limit, dtype=np.float32)
         yb_high = np.full((self.num_agent,), self.num_agent * self.d_limit, dtype=np.float32)
         gc_low = np.zeros((self.num_agent,), dtype=np.float32)
@@ -132,6 +133,34 @@ class YBGCEnv(gym.Env):
         info = {"r": float(r), "r1": float(r1), "r2": float(r2)}
         return float(r), info
 
+    def _sample_csgb(self) -> np.ndarray:
+        """采样 csgb 增量：70% 均匀随机，30% 极端模式（默认概率可配）。"""
+        size = self.num_agent - 1
+        limit = int(self.d_limit)
+        if size <= 0:
+            return np.array([0], dtype=np.int64)
+
+        if self.rng.random() >= self.extreme_init_prob:
+            # 常规模式：原始均匀采样
+            csgb = self.rng.integers(low=-limit, high=limit + 1, size=(size,), dtype=np.int64)
+        else:
+            # 极端模式：绝对值偏大 + 趋势更一致（更容易形成单调增/减）
+            magnitudes = self.rng.triangular(left=0.0, mode=float(limit), right=float(limit), size=(size,))
+            magnitudes = np.clip(np.rint(magnitudes), 0, limit).astype(np.int64)
+
+            trend_sign = 1 if self.rng.random() < 0.5 else -1
+            if self.rng.random() < 0.5:
+                # 一半的极端样本保持严格单调趋势
+                signs = np.full((size,), trend_sign, dtype=np.int64)
+            else:
+                # 另一半允许少量反向扰动，保留多样性
+                same_sign_mask = self.rng.random(size) < 0.85
+                signs = np.where(same_sign_mask, trend_sign, -trend_sign).astype(np.int64)
+            csgb = magnitudes * signs
+
+        csgb = np.concatenate([np.array([0], dtype=np.int64), csgb], axis=0)
+        return csgb
+
     def reset(
         self,
         *,
@@ -144,12 +173,7 @@ class YBGCEnv(gym.Env):
         self.step_count = 0
         self.episode_return = 0.0
         self.r1_reached_once = False
-        csgb = self.rng.integers(
-            low=-int(self.d_limit),
-            high=int(self.d_limit) + 1,
-            size=(self.num_agent - 1,),
-        )
-        csgb = np.concatenate([np.array([0], dtype=np.int64), csgb], axis=0)
+        csgb = self._sample_csgb()
         self.yb = np.cumsum(csgb).astype(float).tolist()
         self.gc = self.rng.normal(800, 50, size=(self.num_agent,))
         self.gc = [int(x) for x in np.clip(self.gc, a_min=650, a_max=865).astype(float).tolist()]
@@ -206,23 +230,3 @@ class YBGCEnv(gym.Env):
 
 
 
-# def main() -> None:
-#     # 1) 初始化环境
-#     env = YBGCEnv(num_agent=10, max_steps_per_episode=6, seed=42)
-#
-#
-#     obs, info = env.reset(seed=42)
-#     print(obs)
-#     print(info)
-#     total_reward = 0.6*(1-100/((10 - 1) * 50 + 865))+0.4*(800/865)
-#     max_iter = 20
-#     for t in range(max_iter):
-#         action = env.action_space.sample()  # 每维在 [0,1]
-#         next_obs, reward, terminated, truncated, step_info = env.step(action)
-#         total_reward += reward
-#         assert env.observation_space.contains(next_obs), "obs 超出 observation_space"
-#         assert np.all((action >= 0.0) & (action <= 1.0)), "随机动作不在 [0,1]"
-#         if terminated or truncated:
-#             break
-# if __name__ == "__main__":
-#     main()
